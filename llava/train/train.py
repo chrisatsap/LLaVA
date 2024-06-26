@@ -70,6 +70,8 @@ class ModelArguments:
 class DataArguments:
     data_path: str = field(default=None,
                            metadata={"help": "Path to the training data."})
+    eval_path: str = field(default=None,
+                           metadata={"help": "Path to the evaluation data."})
     lazy_preprocess: bool = False
     is_multimodal: bool = False
     image_folder: Optional[str] = field(default=None)
@@ -777,11 +779,14 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
                                 data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer,
-                                data_path=data_args.data_path,
-                                data_args=data_args)
+                                          data_path=data_args.data_path,
+                                          data_args=data_args)
+    # eval_dataset = LazySupervisedDataset(tokenizer=tokenizer,
+    #                             data_path=data_args.eval_path,
+    #                             data_args=data_args)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset,
-                eval_dataset=None,
+                eval_dataset=None,  # eval_dataset,
                 data_collator=data_collator)
 
 
@@ -809,7 +814,8 @@ def train(attn_implementation=None):
                 llm_int8_has_fp16_weight=False,
                 bnb_4bit_compute_dtype=compute_dtype,
                 bnb_4bit_use_double_quant=training_args.double_quant,
-                bnb_4bit_quant_type=training_args.quant_type # {'fp4', 'nf4'}
+                bnb_4bit_quant_type=training_args.quant_type, # {'fp4', 'nf4'}
+                low_cpu_mem_usage=True
             )
         ))
 
@@ -821,7 +827,8 @@ def train(attn_implementation=None):
                 model_args.model_name_or_path,
                 config=config,
                 cache_dir=training_args.cache_dir,
-                **bnb_model_from_pretrained_args
+                **bnb_model_from_pretrained_args,
+                low_cpu_mem_usage=True
             )
         else:
             model = LlavaLlamaForCausalLM.from_pretrained(
@@ -829,7 +836,8 @@ def train(attn_implementation=None):
                 cache_dir=training_args.cache_dir,
                 attn_implementation=attn_implementation,
                 torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                **bnb_model_from_pretrained_args
+                **bnb_model_from_pretrained_args,
+                low_cpu_mem_usage=True
             )
     else:
         model = transformers.LlamaForCausalLM.from_pretrained(
@@ -837,7 +845,8 @@ def train(attn_implementation=None):
             cache_dir=training_args.cache_dir,
             attn_implementation=attn_implementation,
             torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-            **bnb_model_from_pretrained_args
+            **bnb_model_from_pretrained_args,
+            low_cpu_mem_usage=True
         )
     model.config.use_cache = False
 
